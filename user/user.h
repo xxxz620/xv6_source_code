@@ -23,7 +23,23 @@ int getpid(void);
 char* sbrk(int);
 int sleep(int);
 int uptime(void);
-
+int chpri( int, int );
+int sh_var_read(void);
+int sh_var_write(int);
+int sem_create (int n_sem);
+int sem_p(int sem_id);
+int sem_v(int sem_id);	
+int sem_free (int sem_id);
+void* shmgetat(uint key, uint num);
+int shmrefcount(uint key);
+int mqget(uint);
+int msgsnd(uint, int, int, char*);
+int msgrcv(uint, int, int, uint64);
+int clone(void (*fcn)(void *), void *stack, void *arg); 
+int join();
+uint64 myalloc(int);
+int myfree(uint64);
+int getcpuid(void);
 // ulib.c
 int stat(const char*, struct stat*);
 char* strcpy(char*, const char*);

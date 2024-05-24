@@ -8,6 +8,7 @@ struct spinlock;
 struct sleeplock;
 struct stat;
 struct superblock;
+struct sharemem;
 
 // console.c
 void            consoleinit(void);
@@ -26,6 +27,7 @@ void            initlock(struct spinlock*, char*);
 void            release(struct spinlock*);
 void            push_off(void);
 void            pop_off(void);
+void            seminit(); 
 
 // sleeplock.c
 void            acquiresleep(struct sleeplock*);
@@ -78,6 +80,14 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+uint64          chpri(int,int);
+void            wakeup1p(void*);
+int             clone(void (*fcn)(void *), void *stack, void *arg);
+int             join(void);
+uint64          mygrowproc(int n);
+int             myreduceproc(uint64 address);
+int		getcpuid(void);
+
 
 // swtch.S
 void            swtch(struct context*, struct context*);
@@ -104,6 +114,8 @@ uint64          walkaddr(pagetable_t, uint64);
 int             copyout(pagetable_t, uint64, char *, uint64);
 int             copyin(pagetable_t, char *, uint64, uint64);
 int             copyinstr(pagetable_t, char *, uint64, uint64);
+uint64          myallocuvm(pagetable_t pgdir, uint64 start, uint64 end);
+uint64          mydeallocuvm(pagetable_t pgdir, uint64 start, uint64 end);
 
 // apic.c
 void            apic_init(void);
@@ -177,6 +189,25 @@ void            syscall();
 
 // exec.c
 int             exec(char*, char**);
+
+// sharemem.c
+void            sharememinit();
+void*           shmgetat(uint, uint);
+int             shmrefcount(uint);
+int             shmrelease(pde_t*, uint64, uint);
+void            shmaddcount(uint);
+int             shmkeyused(uint, uint);
+
+// messagequeue.c
+void 	mqinit();								//初始化系统的消息队列
+int     mqget(uint);							//申请使用某个消息队列
+int     msgsnd(uint, int, int, char *);				//发送消息
+int     msgrcv(uint, int, int, uint64);				//接收消息
+void    releasemq(uint);
+void    releasemq2(int);						//释放消息队列
+void    addmqcount(uint);
+int     copyoutstr(pagetable_t , uint64 , char *, uint64);	
+
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))

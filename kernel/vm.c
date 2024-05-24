@@ -389,3 +389,69 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
     return -1;
   }
 }//todo
+
+int
+copyoutstr(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
+{
+  uint64 n, va0, pa0;
+
+  int got_null = 0;
+  while(len > 0){
+    va0 = PGROUNDDOWN(dstva);
+    pa0 = walkaddr(pagetable, va0);
+    if(pa0 == 0)
+      return -1;
+    n = PGSIZE - (dstva - va0);
+    if(n > len)
+      n = len;
+    char *p = (char *)((pa0 + (dstva - va0)) | DMWIN_MASK);
+    while(n > 0) {
+      if(*src == '\0'){
+        *p = '\0';
+        got_null = 1;
+        break;
+      } else {
+        *p = *src;
+      }
+      --n;
+      --len;
+      p++;
+      src++;
+    }  
+
+    len -= n;
+    src += n;
+    dstva = va0 + PGSIZE;
+  }
+
+  if(got_null){
+    return 0;
+  } else {
+    return -1;
+  }
+}//todo
+
+// start 和 end 都是虚拟地址
+uint64 
+myallocuvm(pagetable_t pgdir, uint64 start, uint64 end) {
+	char* mem;
+ 	uint64 a;
+ 
+ 	a = PGROUNDUP(start);
+ 	for(; a < end; a += PGSIZE) {
+ 		mem = kalloc();
+ 		memset(mem, 0, PGSIZE);
+    mappages(pgdir, a, PGSIZE, (uint64)mem, PTE_P|PTE_W|PTE_PLV|PTE_MAT|PTE_D);
+ 	}
+ 	return (end-start);
+} 
+// start 和 end 都是虚拟地址
+uint64
+mydeallocuvm(pagetable_t pgdir, uint64 start, uint64 end) {
+  if(PGROUNDUP(start) < PGROUNDUP(end)){
+    int npages = (PGROUNDUP(end) - PGROUNDUP(start)) / PGSIZE;
+    uvmunmap(pgdir, PGROUNDUP(start), npages, 1);
+  }
+
+ 	return start;
+}

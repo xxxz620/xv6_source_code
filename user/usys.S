@@ -105,3 +105,88 @@ uptime:
  li.d $a7, SYS_uptime
  syscall 0
  jirl $zero, $ra, 0
+.global getcpuid
+getcpuid:
+ li.d $a7, SYS_getcpuid
+ syscall 0
+ jirl $zero, $ra, 0
+.global chpri
+chpri:
+ li.d $a7, SYS_chpri
+ syscall 0
+ jirl $zero, $ra, 0
+.global sh_var_read
+sh_var_read:
+ li.d $a7, SYS_sh_var_read
+ syscall 0
+ jirl $zero, $ra, 0
+.global sh_var_write
+sh_var_write:
+ li.d $a7, SYS_sh_var_write
+ syscall 0
+ jirl $zero, $ra, 0
+.global sem_create
+sem_create:
+ li.d $a7, SYS_sem_create
+ syscall 0
+ jirl $zero, $ra, 0
+.global sem_p
+sem_p:
+ li.d $a7, SYS_sem_p
+ syscall 0
+ jirl $zero, $ra, 0
+.global sem_v
+sem_v:
+ li.d $a7, SYS_sem_v
+ syscall 0
+ jirl $zero, $ra, 0
+.global sem_free
+sem_free:
+ li.d $a7, SYS_sem_free
+ syscall 0
+ jirl $zero, $ra, 0
+.global shmgetat
+shmgetat:
+ li.d $a7, SYS_shmgetat
+ syscall 0
+ jirl $zero, $ra, 0
+.global shmrefcount
+shmrefcount:
+ li.d $a7, SYS_shmrefcount
+ syscall 0
+ jirl $zero, $ra, 0
+.global mqget
+mqget:
+ li.d $a7, SYS_mqget
+ syscall 0
+ jirl $zero, $ra, 0
+.global msgsnd
+msgsnd:
+ li.d $a7, SYS_msgsnd
+ syscall 0
+ jirl $zero, $ra, 0
+.global msgrcv
+msgrcv:
+ li.d $a7, SYS_msgrcv
+ syscall 0
+ jirl $zero, $ra, 0
+.global clone
+clone:
+ li.d $a7, SYS_clone
+ syscall 0
+ jirl $zero, $ra, 0
+.global join
+join:
+ li.d $a7, SYS_join
+ syscall 0
+ jirl $zero, $ra, 0
+.global myalloc
+myalloc:
+ li.d $a7, SYS_myalloc
+ syscall 0
+ jirl $zero, $ra, 0
+.global myfree
+myfree:
+ li.d $a7, SYS_myfree
+ syscall 0
+ jirl $zero, $ra, 0

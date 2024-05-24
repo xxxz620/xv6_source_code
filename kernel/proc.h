@@ -67,6 +67,12 @@ struct trapframe {
 
 enum procstate { UNUSED, USED, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+struct vma{
+  uint64 address;   // 内存块起始地址
+  int length;  // 内存块大小
+  int next;    // 下一块内存索引，-1 表示未分配，0 表示没有下一个
+};
+
 struct proc
 {
   struct spinlock lock;
@@ -80,6 +86,8 @@ struct proc
 
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process
+  struct proc *pthread;       //Parent thread
+  void *ustack;               //User thread stack
 
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack
@@ -90,4 +98,14 @@ struct proc
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
+  int slot;                     //time slot(ticks)
+  int priority;   //Process priority(0-20)
+  uint shm;
+  uint shmkeymask;
+  void* shmva[8];
+  uint mqmask;
+  struct vma vm[10];
 };
+
+#define SLOT 8  //time slices
+

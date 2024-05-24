@@ -119,6 +119,20 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->slot = SLOT;
+  p->priority = 10;
+  p->shm = TRAPFRAME -64 *2*PGSIZE;
+  p->shmkeymask = 0;
+  p->mqmask = 0;
+  p->pthread = 0;
+
+  for (int i = 0; i < 10; i++)
+  {
+    p->vm[i].next = -1;
+    p->vm[i].length = 0;
+  }
+  p->vm[0].next = 0;
+  
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -281,12 +295,27 @@ fork(void)
     return -1;
   }
   np->sz = p->sz;
+  //  Copy shared memory
+  shmaddcount(p->shmkeymask);
+  np->shm = p->shm;
+  np->shmkeymask = p->shmkeymask;
+
+  for(i = 0;i < 8;++i)
+  {
+    if(shmkeyused(i,np->shmkeymask))
+    {
+      np->shmva[i] = p->shmva[i];
+    }
+  }
 
   // copy saved user registers.
   *(np->trapframe) = *(p->trapframe);
 
   // Cause fork to return 0 in the child.
   np->trapframe->a0 = 0;
+
+  addmqcount(p->mqmask);
+  np->mqmask = p->mqmask;
 
   // increment reference counts on open file descriptors.
   for(i = 0; i < NOFILE; i++)
@@ -357,7 +386,10 @@ exit(int status)
   reparent(p);
 
   // Parent might be sleeping in wait().
-  wakeup(p->parent);
+  if(p->parent==0 && p->pthread!=0)
+    wakeup(p->pthread);
+  else
+    wakeup(p->parent);
   
   acquire(&p->lock);
 
@@ -400,6 +432,11 @@ wait(uint64 addr)
             release(&wait_lock);
             return -1;
           }
+          shmrelease(np->pagetable,np->shm,np->shmkeymask);
+          np->shm = TRAPFRAME - 64*2*PGSIZE;
+          np->shmkeymask = 0;
+          releasemq2(np->mqmask);
+          np->mqmask = 0;
           freeproc(np);
           release(&np->lock);
           release(&wait_lock);
@@ -431,7 +468,10 @@ void
 scheduler(void)
 {
   struct proc *p;
+  struct proc *temp;
   struct cpu *c = mycpu();
+  int priority;
+  int needed = 1;
   
   c->proc = 0;
   for(;;){
@@ -439,6 +479,21 @@ scheduler(void)
     intr_on();
 
     for(p = proc; p < &proc[NPROC]; p++) {
+      if(needed)
+      {
+        priority = 19;
+        for(temp = proc;temp < &proc[NPROC];temp++)
+        {
+          if(temp->state == RUNNABLE && temp->priority < priority)
+            priority = temp->priority;
+        }
+      }
+      needed = 0;
+      if(p->state != RUNNABLE)
+        continue;
+      if(p->priority > priority)
+        continue;
+
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
         // Switch to chosen process.  It is the process's job
@@ -453,6 +508,7 @@ scheduler(void)
         c->proc = 0;
       }
       release(&p->lock);
+      needed = 1;
     }
   }
 }
@@ -566,6 +622,26 @@ wakeup(void *chan)
   }
 }
 
+void 
+wakeup1p(void *chan) 
+{
+  struct proc *p;
+ 
+  for (p = proc; p < &proc[NPROC]; p++)
+  {
+    if(p != myproc()) {
+      acquire(&p->lock);
+    if(p->state == SLEEPING && p->chan == chan) {
+      p->state = RUNNABLE;
+      release(&p->lock);
+      break;
+    }
+    release(&p->lock);
+    }
+  }
+   
+}
+
 // Kill the process with the given pid.
 // The victim won't exit until it tries to return
 // to user space (see usertrap() in trap.c).
@@ -644,7 +720,191 @@ procdump(void)
       state = states[p->state];
     else
       state = "???";
-    printf("%d %s %s", p->pid, state, p->name);
+    printf("time slice:%d t,pid=%d,state=%s,priority=%d %s", p->slot,p->pid, 
+    state, p->priority,p->name);
     printf("\n");
+
+    for (int i = p->vm[0].next; i != 0; i = p->vm[i].next)
+    {
+      printf("start: %d, length: %d \n",p->vm[i].address, p->vm[i].length);
+    }
+    printf("\n");
+    
   }
+}
+
+uint64
+chpri(int pid,int priority)
+{
+  struct proc *p;
+  for(p = proc;p < &proc[NPROC];p++)
+  {
+    acquire(&p->lock);
+    if(p->pid == pid)
+    {
+      p->priority = priority;
+      release(&p->lock);
+      break;
+    }
+    release(&p->lock);
+
+  }
+  return (uint64)pid;
+}
+
+//调用clone()前需要分配好线程栈的内存空间，并通过stack参数传入
+int clone(void (*fcn)(void *), void *stack, void *arg) {
+
+  struct proc *curproc = myproc();    //记录发出clone的进程
+  struct proc *np;
+  if ((np = allocproc()) == 0)        //为新线程分配PCB/TCB
+    return -1;
+ 
+   np->pagetable = curproc->pagetable;   //线程间共用同一个页表
+ 
+   if((np->trapframe = (struct trapframe *)kalloc()) == 0){    //分配线程内核栈空间
+     freeproc(np);
+     release(&np->lock);
+     return 0;
+   }
+ 
+   
+   np->sz = curproc->sz;
+   np->pthread = curproc;          // exit时用于找到父线程并唤醒
+   np->ustack = stack;             // 设置自己的线程栈
+   np->parent = 0;
+   *(np->trapframe) = *(curproc->trapframe);   //继承trapframe
+ 
+   // 设置trapframe映射
+   if(mappages(np->pagetable, TRAPFRAME - PGSIZE, PGSIZE,
+               (uint64)(np->trapframe), PTE_NX | PTE_P | PTE_W | PTE_MAT | PTE_D) < 0){  
+    uvmfree(np->pagetable, 0);
+    return 0;
+  }
+  // 设置栈指针
+  // np->trapframe->sp = (e)(stack + 4096 -8);
+  np->trapframe->sp = (uint64)(stack + 4096 -8);
+  // 修改返回值a0
+  np->trapframe->a0 = (uint64)arg;
+
+  // 修改返回地址
+  np->trapframe->era = (uint64)fcn;
+
+  // 复制文件描述符
+  for (int i = 0; i < NOFILE; i++)
+    if (curproc->ofile[i])
+      np->ofile[i] = filedup(curproc->ofile[i]);
+  np->cwd = idup(curproc->cwd);
+
+  safestrcpy(np->name, curproc->name, sizeof(curproc->name));
+  int pid = np->pid;
+
+  release(&np->lock);
+
+  acquire(&np->lock);
+  np->state = RUNNABLE;
+  release(&np->lock);
+
+  // 返回新线程的pid
+  return pid;
+}
+
+int join() {
+struct proc *curproc = myproc();
+  struct proc *p;
+  int havekids;
+  for (;;) {
+    havekids = 0;
+    for (p = proc; p < &proc[NPROC]; p++) {
+      if (p->pthread != curproc)    // 判断是不是自己的子线程
+        continue;
+ 
+      havekids = 1;
+      if (p->state == ZOMBIE) {
+        acquire(&p->lock);
+        if(p->trapframe)
+          kfree((void*)p->trapframe);
+        p->trapframe = 0;
+        if(p->pagetable)
+          uvmunmap(p->pagetable, TRAPFRAME - PGSIZE, 1, 0); // 释放内核栈
+        p->pagetable = 0;
+        p->sz = 0;
+        p->pid = 0;
+        p->parent = 0;
+        p->pthread = 0;
+        p->name[0] = 0;
+        p->chan = 0;
+        p->killed = 0;
+        p->xstate = 0;
+        p->state = UNUSED;
+
+        int pid = p->pid;
+
+        release(&p->lock);
+        return pid;
+      }
+    }
+    if (!havekids || curproc->killed) {
+      return -1;
+    }
+    sleep(curproc, &wait_lock);
+  }
+  return 0;
+}
+
+uint64 
+mygrowproc(int n){                 // 实现首次最佳适应算法
+	struct proc *proc = myproc();
+  struct vma *vm = proc->vm;     // 遍历寻找合适的空间
+	uint64 start = proc->sz;          // 寻找合适的分配起点
+	int index;
+	int prev = 0;
+	int i;
+
+ 	for(index = vm[0].next; index != 0; index = vm[index].next){
+ 		if(start + n < vm[index].address)
+		break;
+ 		start = vm[index].address + vm[index].length;
+ 		prev = index;
+ 	}
+ 	
+ 	for(i = 1; i < 10; i++) {            // 寻找一块没有用的 vma 记录新的内存块
+ 		if(vm[i].next == -1){
+ 			vm[i].next = index;			
+ 			vm[i].address = start;
+ 			vm[i].length = n;
+ 
+ 			vm[prev].next = i;              //将vm[i]挂入链表尾部
+ 			
+ 			myallocuvm(proc->pagetable, start, start + n);    //为vm[i]分配内存
+ 			return start;   // 返回分配的地址
+ 		}
+ 	}
+ 	return 0;
+}
+
+int
+myreduceproc(uint64 address){  // 释放 address 开头的内存块
+ 	int prev = 0;
+ 	int index;
+  struct proc *proc = myproc();
+ 
+ 	for(index = proc->vm[0].next; index != 0; index = proc->vm[index].next) {
+ 		if(proc->vm[index].address == address && proc->vm[index].length > 0) {    //找到对应内存块
+ 			mydeallocuvm(proc->pagetable, proc->vm[index].address, proc->vm[index].address + proc->vm[index].length);		  //释放内存	
+ 			proc->vm[prev].next = proc->vm[index].next;     //从链上摘除
+ 			proc->vm[index].next = -1;        //标记为未用
+ 			proc->vm[index].length = 0;
+ 			break;
+ 		}
+ 		prev = index;
+ 	}
+  return 0;
+}
+
+int
+getcpuid(void)
+{
+	int id = r_tp();
+	return id;
 }

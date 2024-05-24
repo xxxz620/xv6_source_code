@@ -30,7 +30,9 @@ OBJS = \
   $K/syscall.o\
   $K/sysproc.o\
   $K/sysfile.o\
-  $K/uservec.o
+  $K/uservec.o\
+  $K/sharemem.o\
+  $K/messagequeue.o
 
 TOOLPREFIX = loongarch64-unknown-linux-gnu-
 
@@ -63,7 +65,7 @@ $U/initcode: $U/initcode.S
 tags: $(OBJS) _init
 	etags *.S *.c
 
-ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o
+ULIB = $U/ulib.o $U/usys.o $U/printf.o $U/umalloc.o $U/uthread.o
 
 _%: %.o $(ULIB)
 	$(LD) $(LDFLAGS) -N -e main -Ttext 0 -o $@ $^
@@ -112,6 +114,16 @@ UPROGS=\
 	$U/_sh\
 	$U/_stressfs\
 	$U/_usertests\
+	$U/_loop\
+	$U/_prio-sched\
+	$U/_sh_rw_nolock\
+	$U/_sh_rw_lock\
+	$U/_shmemtest\
+	$U/_msg_test\
+	$U/_threadTest\
+	$U/_cloneTest\
+	$U/_myallc\
+	$U/_helloworld\
 #	$U/_grind\
 	$U/_wc\
 	$U/_zombie\

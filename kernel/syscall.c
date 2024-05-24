@@ -104,6 +104,23 @@ extern uint64 sys_unlink(void);
 extern uint64 sys_wait(void);
 extern uint64 sys_write(void);
 extern uint64 sys_uptime(void);
+extern uint64 sys_chpri(void);
+extern uint64 sys_sh_var_read(void);
+extern uint64 sys_sh_var_write(void);
+extern uint64 sys_sem_create(void);
+extern uint64 sys_sem_p(void);
+extern uint64 sys_sem_v(void);
+extern uint64 sys_sem_free(void);
+extern uint64 sys_shmgetat(void);
+extern uint64 sys_shmrefcount(void);
+extern uint64 sys_mqget(void);
+extern uint64 sys_msgsnd(void);
+extern uint64 sys_msgrcv(void);
+extern uint64 sys_clone(void);
+extern uint64 sys_join(void);
+extern uint64 sys_myfree(void);
+extern uint64 sys_myalloc(void);
+extern uint64 sys_getcpuid(void);
 
 static uint64 (*syscalls[])(void) = {
 [SYS_fork]    sys_fork,
@@ -127,6 +144,23 @@ static uint64 (*syscalls[])(void) = {
 [SYS_link]    sys_link,
 [SYS_mkdir]   sys_mkdir,
 [SYS_close]   sys_close,
+[SYS_chpri]   sys_chpri,
+[SYS_sh_var_read] sys_sh_var_read,
+[SYS_sh_var_write]  sys_sh_var_write,
+[SYS_sem_create]  sys_sem_create,
+[SYS_sem_p]   sys_sem_p,
+[SYS_sem_v]   sys_sem_v,
+[SYS_sem_free]    sys_sem_free,
+[SYS_shmgetat]    sys_shmgetat,
+[SYS_shmrefcount] sys_shmrefcount,
+[SYS_mqget]       sys_mqget,
+[SYS_msgsnd]      sys_msgsnd,
+[SYS_msgrcv]      sys_msgrcv,
+[SYS_clone]       sys_clone,
+[SYS_join]        sys_join,
+[SYS_myalloc]     sys_myalloc,
+[SYS_myfree]      sys_myfree,
+[SYS_getcpuid]	  sys_getcpuid,
 };
 
 void
